@@ -15,52 +15,76 @@ nltk.download("stopwords")
 # Initialize Flask app
 app = Flask(__name__)
 
-# Load the trained model and tokenizer
+# Load trained model
 model = load_model("lstm_model.h5")
+
+# Load tokenizer
 with open("tokenizer.pkl", "rb") as f:
     tokenizer = pickle.load(f)
 
+# Initialize preprocessing tools (only once)
+ps = PorterStemmer()
+stop_words = set(stopwords.words("english"))
 
-# Text preprocessing function
+
+# -----------------------------
+# Text Preprocessing Function
+# -----------------------------
 def clean_text(text):
-    """Cleans text by lowercasing, removing stopwords, and applying stemming."""
-    ps = PorterStemmer()
-    stop_words = set(stopwords.words("english"))
+    """Clean and preprocess input text."""
 
     text = text.lower()
-    text = re.sub(r"[^a-z\s]", "", text)  # Remove non-alphabetic characters
+    text = re.sub(r"[^a-z\s]", "", text)
+
     words = text.split()
     words = [ps.stem(word) for word in words if word not in stop_words]
 
     return " ".join(words)
 
 
-# Prediction function
+# -----------------------------
+# Sentiment Prediction Function
+# -----------------------------
 def predict_sentiment(text):
-    """Predicts sentiment for a given text."""
     text = clean_text(text)
+
     sequence = tokenizer.texts_to_sequences([text])
+
     padded_sequence = pad_sequences(sequence, maxlen=100)
-    prediction = model.predict(padded_sequence)[0][0]
+
+    prediction = model.predict(padded_sequence, verbose=0)[0][0]
 
     sentiment = "Positive" if prediction > 0.5 else "Negative"
+
     return sentiment, float(prediction)
 
 
-# Home and prediction route
+# -----------------------------
+# Home Route
+# -----------------------------
 @app.route("/", methods=["GET", "POST"])
 def home():
     result = None
     confidence = None
 
     if request.method == "POST":
+
         text = request.form.get("text")
+
         if text:
             result, confidence = predict_sentiment(text)
 
-    return render_template("index.html", result=result, confidence=round(confidence,2))
+            confidence = round(confidence, 2)
+
+    return render_template(
+        "index.html",
+        result=result,
+        confidence=confidence
+    )
 
 
-# Run the Flask app
+# -----------------------------
+# Run Flask App
+# -----------------------------
 if __name__ == "__main__":
     app.run(debug=True)
